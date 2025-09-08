@@ -32,7 +32,6 @@ class TodoApp {
     setupEventListeners() {
         // Theme toggle
         document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
-        // Add tooltip to theme toggle button dynamically for better accessibility
         document.getElementById('themeToggle').setAttribute('aria-label', 'Toggle light/dark theme');
 
         // Task form
@@ -148,9 +147,8 @@ class TodoApp {
             this.updateStats();
             this.showNotification('Task updated successfully!', 'success');
         }
-    }
-
-    deleteTask(id) {
+            }
+        deleteTask(id) {
         if (confirm('Are you sure you want to delete this task?')) {
             this.tasks = this.tasks.filter(task => task.id !== id);
             this.saveTasks();
@@ -351,155 +349,9 @@ class TodoApp {
         `;
     }
 
-    renderCategories() {
-        const categoryList = document.querySelector('.category-list');
-        const taskCategory = document.getElementById('taskCategory');
+    // ... (other methods can be added here if needed)
+}
 
-        const defaultCategoriesHTML = `
-            <div class="category-item active" data-category="all">
-                <i class="fas fa-inbox"></i>
-                <span>All Tasks</span>
-                <span class="task-count" id="allCount">0</span>
-            </div>
-            <div class="category-item" data-category="work">
-                <i class="fas fa-briefcase"></i>
-                <span>Work</span>
-                <span class="task-count" id="workCount">0</span>
-            </div>
-            <div class="category-item" data-category="study">
-                <i class="fas fa-graduation-cap"></i>
-                <span>Study</span>
-                <span class="task-count" id="studyCount">0</span>
-            </div>
-            <div class="category-item" data-category="personal">
-                <i class="fas fa-user"></i>
-                <span>Personal</span>
-                <span class="task-count" id="personalCount">0</span>
-            </div>
-        `;
-
-        const customCategoriesHTML = this.categories.slice(3).map(cat => `
-            <div class="category-item" data-category="${cat.id}">
-                <i class="${cat.icon}"></i>
-                <span>${cat.name}</span>
-                <span class="task-count" id="${cat.id}Count">0</span>
-            </div>`).join('');
-
-        categoryList.innerHTML = defaultCategoriesHTML + customCategoriesHTML;
-
-        taskCategory.innerHTML = this.categories.map(cat =>
-            `<option value="${cat.id}">${cat.name}</option>`
-        ).join('');
-
-        document.querySelectorAll('.category-item').forEach(item => {
-            item.addEventListener('click', () => this.filterByCategory(item.dataset.category));
-            item.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    this.filterByCategory(item.dataset.category);
-                }
-            });
-        });
-
-        this.updateCategoryCounts();
-    }
-
-    updateCategoryCounts() {
-        const counts = { all: this.tasks.length };
-        this.categories.forEach(category => {
-            counts[category.id] = this.tasks.filter(task => task.category === category.id).length;
-        });
-
-        Object.entries(counts).forEach(([category, count]) => {
-            const element = document.getElementById(`${category}Count`);
-            if (element) element.textContent = count;
-        });
-    }
-
-    updateStats() {
-        const total = this.tasks.length;
-        const completed = this.tasks.filter(task => task.completed).length;
-        const pending = total - completed;
-
-        document.getElementById('totalTasks').textContent = total;
-        document.getElementById('completedTasks').textContent = completed;
-        document.getElementById('pendingTasks').textContent = pending;
-
-        this.updateCategoryCounts();
-        this.updateProgressChart();
-        this.updateUpcomingDeadlines();
-    }
-
-    updateSectionTitle() {
-        const titleElement = document.getElementById('sectionTitle') || document.getElementById('tasks-heading');
-        let title = 'All Tasks';
-
-        if (this.currentCategory !== 'all') {
-            const category = this.categories.find(cat => cat.id === this.currentCategory);
-            title = category ? category.name : this.currentCategory;
-        }
-
-        if (this.currentFilter !== 'all') {
-            title += ` - ${this.currentFilter.charAt(0).toUpperCase() + this.currentFilter.slice(1)}`;
-        }
-
-        titleElement.textContent = title;
-    }
-
-    // Form Handling
-    handleTaskSubmit(e) {
-        e.preventDefault();
-
-        const taskData = {
-            title: document.getElementById('taskTitle').value.trim(),
-            description: document.getElementById('taskDescription').value.trim(),
-            category: document.getElementById('taskCategory').value,
-            priority: document.getElementById('taskPriority').value,
-            dueDate: document.getElementById('taskDueDate').value,
-            recurring: document.getElementById('taskRecurring').checked
-        };
-
-        if (!taskData.title) {
-            this.showNotification('Please enter a task title', 'error');
-            return;
-        }
-
-        if (this.editingTask) {
-            this.editTask(this.editingTask, taskData);
-            this.cancelEdit();
-        } else {
-            this.addTask(taskData);
-        }
-
-        e.target.reset();
-    }
-
-    startEditTask(id) {
-        const task = this.tasks.find(task => task.id === id);
-        if (!task) return;
-
-        this.editingTask = id;
-
-        document.getElementById('taskTitle').value = task.title;
-        document.getElementById('taskDescription').value = task.description;
-        document.getElementById('taskCategory').value = task.category;
-        document.getElementById('taskPriority').value = task.priority;
-        document.getElementById('taskDueDate').value = task.dueDate || '';
-        document.getElementById('taskRecurring').checked = task.recurring;
-
-        document.querySelector('.add-task-btn').innerHTML = '<i class="fas fa-save"></i> Update Task';
-        document.getElementById('cancelBtn').style.display = 'inline-flex';
-
-        document.getElementById('taskTitle').focus();
-        document.querySelector('.task-input-section').scrollIntoView({ behavior: 'smooth' });
-    }
-
-    cancelEdit() {
-        this.editingTask = null;
-        document.getElementById('taskForm').reset();
-        document.querySelector('.add-task-btn').innerHTML = '<i class="fas fa-plus"></i> Add Task';
-        document.getElementById('cancelBtn').style.display = 'none';
-    }
-
-    // Theme Management
-    setupTheme() {
-        const savedTheme = localStora
+document.addEventListener('DOMContentLoaded', () => {
+    window.todoApp = new TodoApp();
+});
