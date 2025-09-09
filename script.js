@@ -32,6 +32,7 @@ class TodoApp {
     setupEventListeners() {
         // Theme toggle
         document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
+        // Add tooltip to theme toggle button dynamically for better accessibility
         document.getElementById('themeToggle').setAttribute('aria-label', 'Toggle light/dark theme');
 
         // Task form
@@ -147,8 +148,9 @@ class TodoApp {
             this.updateStats();
             this.showNotification('Task updated successfully!', 'success');
         }
-            }
-        deleteTask(id) {
+    }
+
+    deleteTask(id) {
         if (confirm('Are you sure you want to delete this task?')) {
             this.tasks = this.tasks.filter(task => task.id !== id);
             this.saveTasks();
@@ -349,9 +351,409 @@ class TodoApp {
         `;
     }
 
-    // ... (other methods can be added here if needed)
+    renderCategories() {
+        const categoryList = document.querySelector('.category-list');
+        const taskCategory = document.getElementById('taskCategory');
+
+        const defaultCategoriesHTML = `
+            <div class="category-item active" data-category="all">
+                <i class="fas fa-inbox"></i>
+                <span>All Tasks</span>
+                <span class="task-count" id="allCount">0</span>
+            </div>
+            <div class="category-item" data-category="work">
+                <i class="fas fa-briefcase"></i>
+                <span>Work</span>
+                <span class="task-count" id="workCount">0</span>
+            </div>
+            <div class="category-item" data-category="study">
+                <i class="fas fa-graduation-cap"></i>
+                <span>Study</span>
+                <span class="task-count" id="studyCount">0</span>
+            </div>
+            <div class="category-item" data-category="personal">
+                <i class="fas fa-user"></i>
+                <span>Personal</span>
+                <span class="task-count" id="personalCount">0</span>
+            </div>
+        `;
+
+        const customCategoriesHTML = this.categories.slice(3).map(cat => `
+            <div class="category-item" data-category="${cat.id}">
+                <i class="${cat.icon}"></i>
+                <span>${cat.name}</span>
+                <span class="task-count" id="${cat.id}Count">0</span>
+            </div>`).join('');
+
+        categoryList.innerHTML = defaultCategoriesHTML + customCategoriesHTML;
+
+        taskCategory.innerHTML = this.categories.map(cat =>
+            `<option value="${cat.id}">${cat.name}</option>`
+        ).join('');
+
+        document.querySelectorAll('.category-item').forEach(item => {
+            item.addEventListener('click', () => this.filterByCategory(item.dataset.category));
+            item.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    this.filterByCategory(item.dataset.category);
+                }
+            });
+        });
+
+        this.updateCategoryCounts();
+    }
+
+    updateCategoryCounts() {
+        const counts = { all: this.tasks.length };
+        this.categories.forEach(category => {
+            counts[category.id] = this.tasks.filter(task => task.category === category.id).length;
+        });
+
+        Object.entries(counts).forEach(([category, count]) => {
+            const element = document.getElementById(`${category}Count`);
+            if (element) element.textContent = count;
+        });
+    }
+
+    updateStats() {
+        const total = this.tasks.length;
+        const completed = this.tasks.filter(task => task.completed).length;
+        const pending = total - completed;
+
+        document.getElementById('totalTasks').textContent = total;
+        document.getElementById('completedTasks').textContent = completed;
+        document.getElementById('pendingTasks').textContent = pending;
+
+        this.updateCategoryCounts();
+        this.updateProgressChart();
+        this.updateUpcomingDeadlines();
+    }
+
+    updateSectionTitle() {
+        const titleElement = document.getElementById('sectionTitle') || document.getElementById('tasks-heading');
+        let title = 'All Tasks';
+
+        if (this.currentCategory !== 'all') {
+            const category = this.categories.find(cat => cat.id === this.currentCategory);
+            title = category ? category.name : this.currentCategory;
+        }
+
+        if (this.currentFilter !== 'all') {
+            title += ` - ${this.currentFilter.charAt(0).toUpperCase() + this.currentFilter.slice(1)}`;
+        }
+
+        titleElement.textContent = title;
+    }
+
+    // Form Handling
+    handleTaskSubmit(e) {
+        e.preventDefault();
+
+        const taskData = {
+            title: document.getElementById('taskTitle').value.trim(),
+            description: document.getElementById('taskDescription').value.trim(),
+            category: document.getElementById('taskCategory').value,
+            priority: document.getElementById('taskPriority').value,
+            dueDate: document.getElementById('taskDueDate').value,
+            recurring: document.getElementById('taskRecurring').checked
+        };
+
+        if (!taskData.title) {
+            this.showNotification('Please enter a task title', 'error');
+            return;
+        }
+
+        if (this.editingTask) {
+            this.editTask(this.editingTask, taskData);
+            this.cancelEdit();
+        } else {
+            this.addTask(taskData);
+        }
+
+        e.target.reset();
+    }
+
+    startEditTask(id) {
+        const task = this.tasks.find(task => task.id === id);
+        if (!task) return;
+
+        this.editingTask = id;
+
+        document.getElementById('taskTitle').value = task.title;
+        document.getElementById('taskDescription').value = task.description;
+        document.getElementById('taskCategory').value = task.category;
+        document.getElementById('taskPriority').value = task.priority;
+        document.getElementById('taskDueDate').value = task.dueDate || '';
+        document.getElementById('taskRecurring').checked = task.recurring;
+
+        document.querySelector('.add-task-btn').innerHTML = '<i class="fas fa-save"></i> Update Task';
+        document.getElementById('cancelBtn').style.display = 'inline-flex';
+
+        document.getElementById('taskTitle').focus();
+        document.querySelector('.task-input-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    cancelEdit() {
+        this.editingTask = null;
+        document.getElementById('taskForm').reset();
+        document.querySelector('.add-task-btn').innerHTML = '<i class="fas fa-plus"></i> Add Task';
+        document.getElementById('cancelBtn').style.display = 'none';
+    }
+
+    // Theme Management
+    setupTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        this.updateThemeIcon(savedTheme);
+    }
+
+    toggleTheme() {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        this.updateThemeIcon(newTheme);
+    }
+
+    updateThemeIcon(theme) {
+        const icon = document.querySelector('#themeToggle i');
+        icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        document.getElementById('themeToggle').setAttribute('aria-pressed', theme === 'dark');
+    }
+
+    // Progress Chart
+    setupProgressChart() {
+        const ctx = document.getElementById('progressChart').getContext('2d');
+        this.progressChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Completed', 'Pending'],
+                datasets: [{
+                    data: [0, 0],
+                    backgroundColor: ['#10b981', '#e5e7eb'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    }
+
+    updateProgressChart() {
+        if (!this.progressChart) return;
+
+        const completed = this.tasks.filter(task => task.completed).length;
+        const pending = this.tasks.length - completed;
+
+        this.progressChart.data.datasets[0].data = [completed, pending];
+        this.progressChart.update();
+    }
+
+    updateUpcomingDeadlines() {
+        const container = document.getElementById('upcomingDeadlines');
+        const upcoming = this.tasks
+            .filter(task => !task.completed && task.dueDate)
+            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+            .slice(0, 5);
+
+        if (upcoming.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.875rem;">No upcoming deadlines</p>';
+            return;
+        }
+
+        container.innerHTML = upcoming.map(task => `
+            <div class="deadline-item" tabindex="0">
+                <div class="task-title">${task.title}</div>
+                <div class="task-due" aria-label="Due date">${this.formatDate(new Date(task.dueDate))}</div>
+            </div>
+        `).join('');
+    }
+
+    // Import/Export
+    importTasks() {
+        document.getElementById('fileInput').click();
+    }
+
+    handleFileImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const importedTasks = JSON.parse(e.target.result);
+                if (Array.isArray(importedTasks)) {
+                    // Merge imported tasks with existing tasks
+                    this.tasks = [...importedTasks, ...this.tasks];
+                    this.saveTasks();
+                    this.renderTasks();
+                    this.updateStats();
+                    this.showNotification('Tasks imported successfully!', 'success');
+                } else {
+                    throw new Error('Invalid file format');
+                }
+            } catch (error) {
+                this.showNotification('Failed to import tasks. Invalid file.', 'error');
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ""; // Reset file input
+            }
+    exportTasks() {
+        if (this.tasks.length === 0) {
+            this.showNotification('No tasks to export', 'warning');
+            return;
+        }
+        const dataStr = JSON.stringify(this.tasks, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tasks.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        this.showNotification('Tasks exported successfully!', 'success');
+    }
+
+    // Notifications
+    setupNotifications() {
+        this.notificationContainer = document.getElementById('notificationContainer');
+    }
+
+    showNotification(message, type = 'info', duration = 4000) {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+
+        // Dismiss button
+        const dismissBtn = document.createElement('button');
+        dismissBtn.className = 'notification-dismiss';
+        dismissBtn.setAttribute('aria-label', 'Dismiss notification');
+        dismissBtn.innerHTML = '&times;';
+        dismissBtn.onclick = () => {
+            this.notificationContainer.removeChild(notification);
+        };
+        notification.appendChild(dismissBtn);
+
+        this.notificationContainer.appendChild(notification);
+
+        setTimeout(() => {
+            if (notification.parentElement === this.notificationContainer) {
+                this.notificationContainer.removeChild(notification);
+            }
+        }, duration);
+      }
+    
+    // Utility functions
+    escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    formatDate(date) {
+        return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    // Drag and drop setup (Simple reorder)
+    setupDragAndDrop() {
+        const container = document.getElementById('taskContainer');
+        if (!container) return;
+
+        new Sortable(container, {
+            animation: 150,
+            onEnd: (evt) => {
+                if (evt.oldIndex === evt.newIndex) return;
+                // Rearrange tasks array based on sorted DOM order
+                const newOrder = [];
+                container.querySelectorAll('.task-card').forEach(card => {
+                    const taskId = card.dataset.taskId;
+                    const task = this.tasks.find(t => t.id === taskId);
+                    if (task) newOrder.push(task);
+                });
+                this.tasks = newOrder;
+                this.saveTasks();
+                this.renderTasks();
+            }
+        });
+    }
+
+    // Modal control functions (open/close, add category modal)
+    closeModal() {
+        document.getElementById('taskModal').classList.remove('active');
+    }
+
+    closeCategoryModal() {
+        document.getElementById('categoryModal').classList.remove('active');
+    }
+    
+    showCategoryModal() {
+        document.getElementById('categoryModal').classList.add('active');
+        document.getElementById('categoryName').focus();
+    }
+
+    handleCategorySubmit(e) {
+        e.preventDefault();
+        const nameInput = document.getElementById('categoryName');
+        const iconInput = document.getElementById('categoryIcon');
+        const name = nameInput.value.trim();
+        const icon = iconInput.value.trim();
+
+        if (!name || !icon) {
+            this.showNotification('Please fill in all category fields', 'error');
+            return;
+        }
+
+        // Check for duplicate category id
+        const id = name.toLowerCase().replace(/\s+/g, '-');
+        if (this.categories.some(cat => cat.id === id)) {
+            this.showNotification('Category already exists', 'error');
+            return;
+        }
+
+        this.categories.push({ id, name, icon });
+        this.saveCategories();
+        this.renderCategories();
+        this.closeCategoryModal();
+        this.showNotification('Category added successfully!', 'success');
+
+        nameInput.value = '';
+        iconInput.value = '';
+    }
+
+    // Save to localStorage
+    saveTasks() {
+        localStorage.setItem('tasks', JSON.stringify(this.tasks));
+    }
+
+    saveCategories() {
+        localStorage.setItem('categories', JSON.stringify(this.categories));
+    }
+
+    // Reminder check (could be extended)
+    checkReminders() {
+        // Potential place to implement notifications for upcoming tasks
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     window.todoApp = new TodoApp();
-});
+});   
